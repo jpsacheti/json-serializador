@@ -32,6 +32,7 @@ public final class JsonEngine implements Engine {
      */
     @Override
     public <E> String toJson(E object) {
+        //TODO: implementar o serializador para string
         return null;
     }
 
@@ -49,6 +50,7 @@ public final class JsonEngine implements Engine {
      */
     @Override
     public <E> Writer toJsonStream(E object) {
+        //TODO: implementar o serializador para Writer
         return null;
     }
 }
