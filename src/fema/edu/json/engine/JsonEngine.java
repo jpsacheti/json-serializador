@@ -58,7 +58,9 @@ public final class JsonEngine implements Engine {
         final Class<?> classe = object.getClass();
         inserirNome(sb, classe);
         sb.append(ABRE_CHAVES);
-        List<Field> fields = Stream.of(classe.getDeclaredFields()).filter(f -> !(Modifier.isTransient(f.getModifiers()))).collect(Collectors.toList());
+        List<Field> fields = Stream.of(classe.getDeclaredFields())
+                .filter(f -> !Modifier.isTransient(f.getModifiers()))
+                .collect(Collectors.toList());
         for (Field field : fields) {
             field.setAccessible(true);
             try {
