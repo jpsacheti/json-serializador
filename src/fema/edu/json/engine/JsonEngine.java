@@ -11,29 +11,22 @@ import java.io.Writer;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.text.MessageFormat;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
- * Parser de classe para JSON. Singleton, para adquirir uma instância válida, chame
- * {@link #getInstance()}
- */
-
 public final class JsonEngine implements Engine {
 
-    public static final String ABRE_CHAVES = "{";
-    public static final String FECHA_CHAVES = "}";
-    private static final Engine INSTANCE = new JsonEngine();
+    private static final String ABRE_CHAVES = "{";
+    private static final String FECHA_CHAVES = "}";
+    private static final String ABRE_COLCHETES = "[";
+    private static final String FECHA_COLCHETES = "]";
     private static final String TEXT_IN_QUOTES = "\"{0}\"";
     private static final MessageFormat FORMATTER = new MessageFormat(TEXT_IN_QUOTES);
-
-    /**
-     * @return uma instancia válida de {@link Engine}
-     */
-    public static Engine getInstance() {
-        return INSTANCE;
-    }
+    private static final String DOIS_PONTOS = " : ";
+    private Integer iterationCounter = 1;
 
     /**
      * Valida e cria um JSON do objeto informado. A classe deve ter um construtor padrão sem
@@ -51,6 +44,9 @@ public final class JsonEngine implements Engine {
     //TODO: Implementar tratamento de coleções
     @Override
     public <E> String toJson(E object) throws NotSerializableException {
+        if (iterationCounter > 20) {
+            throw new IllegalStateException("Can't serialize more than 20 levels deep!");
+        }
         StringBuilder sb = new StringBuilder();
         if (!(object instanceof Serializable)) {
             throw new NotSerializableException();
@@ -65,7 +61,7 @@ public final class JsonEngine implements Engine {
             field.setAccessible(true);
             try {
                 if (field.get(object) == null) {
-                    field.setAccessible(false);
+                    field.setAccessible(true);
                     continue;
                 }
             } catch (IllegalAccessException e) {
@@ -83,22 +79,44 @@ public final class JsonEngine implements Engine {
         }
         sb.deleteCharAt(sb.lastIndexOf(","));
         sb.append(FECHA_CHAVES);
+        iterationCounter++;
         return sb.toString();
     }
 
     private <E> void processValue(E object, StringBuilder sb, Field field) {
         sb.append(FORMATTER.format(field.getName()));
+        sb.append(DOIS_PONTOS);
         try {
+            Object member = field.get(object);
             if (field.getDeclaringClass().isPrimitive()) {
-                sb.append(field.get(object));
+                sb.append(member);
+            } else if (member instanceof Collection) {
+                sb.append(ABRE_COLCHETES);
+                Collection<?> clct = (Collection<?>) member;
+                for (Object item : clct) {
+                    sb.append(toJson(item));
+                    sb.append(", ");
+                }
+                sb.deleteCharAt(sb.lastIndexOf(","));
+                sb.append(FECHA_COLCHETES);
+            } else if (member instanceof Map) {
+                Map<?, ?> map = (Map<?, ?>) member;
+                sb.append(ABRE_CHAVES);
+                for (Map.Entry<?, ?> e : map.entrySet()) {
+                    sb.append(FORMATTER.format(e.getKey()));
+                    sb.append(DOIS_PONTOS);
+                    sb.append(toJson(e.getValue()));
+                }
+                sb.append(FECHA_CHAVES);
             } else {
-                sb.append(FORMATTER.format(field.get(object).toString()));
+                sb.append(FORMATTER.format(member.toString()));
             }
             sb.append(", ");
-        } catch (IllegalAccessException e) {
+        } catch (IllegalAccessException | NotSerializableException e) {
             throw new JsonException(e);
         }
     }
+
 
     private <E> void processValidator(E object, Field field) {
         ElementValidator elementValidator = field.getAnnotation(ElementValidator.class);
